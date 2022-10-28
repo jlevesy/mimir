@@ -424,7 +424,7 @@ func (w *Writer) AddSeries(ref storage.SeriesRef, lset labels.Labels, chunks ...
 		return errors.Errorf("out-of-order series added with label set %q", lset)
 	}
 
-	if ref < w.lastRef && len(w.lastSeries) != 0 {
+	if ref < w.lastRef && !w.lastSeries.IsEmpty() {
 		return errors.Errorf("series with reference greater than %d already added", ref)
 	}
 	// We add padding to 16 bytes to increase the addressable space we get through 4 byte
@@ -438,9 +438,9 @@ func (w *Writer) AddSeries(ref storage.SeriesRef, lset labels.Labels, chunks ...
 	}
 
 	w.buf2.Reset()
-	w.buf2.PutUvarint(len(lset))
+	w.buf2.PutUvarint(lset.Len())
 
-	for _, l := range lset {
+	if err := lset.RangeToError(func(l labels.Label) error {
 		var err error
 		cacheEntry, ok := w.symbolCache[l.Name]
 		nameIndex := cacheEntry.index
@@ -466,6 +466,9 @@ func (w *Writer) AddSeries(ref storage.SeriesRef, lset labels.Labels, chunks ...
 			}
 		}
 		w.buf2.PutUvarint32(valueIndex)
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	w.buf2.PutUvarint(len(chunks))
@@ -497,7 +500,7 @@ func (w *Writer) AddSeries(ref storage.SeriesRef, lset labels.Labels, chunks ...
 		return errors.Wrap(err, "write series data")
 	}
 
-	w.lastSeries = append(w.lastSeries[:0], lset...)
+	w.lastSeries.CopyFrom(lset)
 	w.lastRef = ref
 
 	return nil
@@ -1087,6 +1090,8 @@ type Reader struct {
 
 	// Provides a cache mapping series labels hash by series ID.
 	cacheProvider ReaderCacheProvider
+
+	shardFunc func(l labels.Labels) uint64 // Computes a hash of Labels; must be consistent over time.
 }
 
 type postingOffset struct {
@@ -1127,11 +1132,11 @@ func NewReaderWithCache(b ByteSlice, cacheProvider ReaderCacheProvider) (*Reader
 
 // NewFileReader returns a new index reader against the given index file.
 func NewFileReader(path string) (*Reader, error) {
-	return NewFileReaderWithCache(path, nil)
+	return NewFileReaderWithCache(path, nil, nil)
 }
 
 // NewFileReaderWithCache is like NewFileReader but allows to pass a cache provider.
-func NewFileReaderWithCache(path string, cacheProvider ReaderCacheProvider) (*Reader, error) {
+func NewFileReaderWithCache(path string, cacheProvider ReaderCacheProvider, shardFunc func(l labels.Labels) uint64) (*Reader, error) {
 	f, err := fileutil.OpenMmapFile(path)
 	if err != nil {
 		return nil, err
@@ -1143,6 +1148,7 @@ func NewFileReaderWithCache(path string, cacheProvider ReaderCacheProvider) (*Re
 			f.Close(),
 		).Err()
 	}
+	r.shardFunc = shardFunc
 
 	return r, nil
 }
@@ -1614,7 +1620,7 @@ func (r *Reader) LabelValueFor(id storage.SeriesRef, label string) (string, erro
 
 // Series reads the series with the given ID and writes its labels and chunks into lbls and chks.
 // Chunks will be skipped if chks is nil.
-func (r *Reader) Series(id storage.SeriesRef, lbls *labels.Labels, chks *[]chunks.Meta) error {
+func (r *Reader) Series(id storage.SeriesRef, builder *labels.ScratchBuilder, lbls *labels.Labels, chks *[]chunks.Meta) error {
 	offset := id
 	// In version 2 series IDs are no longer exact references but series are 16-byte padded
 	// and the ID is the multiple of 16 of the actual position.
@@ -1625,7 +1631,7 @@ func (r *Reader) Series(id storage.SeriesRef, lbls *labels.Labels, chks *[]chunk
 	if d.Err() != nil {
 		return d.Err()
 	}
-	return errors.Wrap(r.dec.Series(d.Get(), lbls, chks), "read series")
+	return errors.Wrap(r.dec.Series(d.Get(), builder, lbls, chks), "read series")
 }
 
 func (r *Reader) Postings(name string, values ...string) (Postings, error) {
@@ -1738,7 +1744,8 @@ func (r *Reader) SortedPostings(p Postings) Postings {
 func (r *Reader) ShardedPostings(p Postings, shardIndex, shardCount uint64) Postings {
 	var (
 		out     = make([]storage.SeriesRef, 0, 128)
-		bufLbls = make(labels.Labels, 0, 10)
+		builder = labels.ScratchBuilder{}
+		bufLbls = labels.Labels{}
 	)
 
 	// Request the cache each time because the cache implementation requires
@@ -1763,12 +1770,12 @@ func (r *Reader) ShardedPostings(p Postings, shardIndex, shardCount uint64) Post
 
 		if !ok {
 			// Get the series labels (no chunks).
-			err := r.Series(id, &bufLbls, nil)
+			err := r.Series(id, &builder, &bufLbls, nil)
 			if err != nil {
 				return ErrPostings(errors.Errorf("series %d not found", id))
 			}
 
-			hash = bufLbls.Hash()
+			hash = r.shardFunc(bufLbls)
 			if seriesHashCache != nil {
 				seriesHashCache.Store(id, hash)
 			}
@@ -1905,11 +1912,9 @@ func (dec *Decoder) LabelValueFor(b []byte, label string) (string, error) {
 
 // Series decodes a series entry from the given byte slice into lset and chks.
 // Skips reading chunks metadata if chks is nil.
-func (dec *Decoder) Series(b []byte, lbls *labels.Labels, chks *[]chunks.Meta) error {
-	*lbls = (*lbls)[:0]
-	if chks != nil {
-		*chks = (*chks)[:0]
-	}
+// Previous contents of lbls can be overwritten - make sure you copy before retaining.
+func (dec *Decoder) Series(b []byte, builder *labels.ScratchBuilder, lbls *labels.Labels, chks *[]chunks.Meta) error {
+	builder.Reset()
 
 	d := encoding.Decbuf{B: b}
 
@@ -1932,8 +1937,9 @@ func (dec *Decoder) Series(b []byte, lbls *labels.Labels, chks *[]chunks.Meta) e
 			return errors.Wrap(err, "lookup label value")
 		}
 
-		*lbls = append(*lbls, labels.Label{Name: ln, Value: lv})
+		builder.Add(ln, lv)
 	}
+	builder.Overwrite(lbls)
 
 	// Skip reading chunks metadata if chks is nil.
 	if chks == nil {
@@ -1951,7 +1957,7 @@ func (dec *Decoder) Series(b []byte, lbls *labels.Labels, chks *[]chunks.Meta) e
 	maxt := int64(d.Uvarint64()) + t0
 	ref0 := int64(d.Uvarint64())
 
-	*chks = append(*chks, chunks.Meta{
+	*chks = append((*chks)[:0], chunks.Meta{
 		Ref:     chunks.ChunkRef(ref0),
 		MinTime: t0,
 		MaxTime: maxt,
