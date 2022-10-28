@@ -714,18 +714,19 @@ func (r *UserRegistries) BuildMetricFamiliesPerUser() MetricFamiliesPerUser {
 }
 
 // FromLabelPairsToLabels converts dto.LabelPair into labels.Labels.
-func FromLabelPairsToLabels(pairs []*dto.LabelPair) labels.Labels {
-	builder := labels.NewBuilder(nil)
+func FromLabelPairsToLabels(builder *labels.ScratchBuilder, pairs []*dto.LabelPair) labels.Labels {
+	builder.Reset()
 	for _, pair := range pairs {
-		builder.Set(pair.GetName(), pair.GetValue())
+		builder.Add(pair.GetName(), pair.GetValue())
 	}
-	return builder.Labels(nil)
+	return builder.Labels()
 }
 
 // GetSumOfHistogramSampleCount returns the sum of samples count of histograms matching the provided metric name
 // and optional label matchers. Returns 0 if no metric matches.
 func GetSumOfHistogramSampleCount(families []*dto.MetricFamily, metricName string, matchers labels.Selector) uint64 {
 	sum := uint64(0)
+	builder := labels.ScratchBuilder{}
 
 	for _, metric := range families {
 		if metric.GetName() != metricName {
@@ -737,7 +738,7 @@ func GetSumOfHistogramSampleCount(families []*dto.MetricFamily, metricName strin
 		}
 
 		for _, series := range metric.GetMetric() {
-			if !matchers.Matches(FromLabelPairsToLabels(series.GetLabel())) {
+			if !matchers.Matches(FromLabelPairsToLabels(&builder, series.GetLabel())) {
 				continue
 			}
 
