@@ -78,9 +78,10 @@ func TestRewrite(t *testing.T) {
 
 	for p := ir2.SortedPostings(all); p.Next(); {
 		var lset labels.Labels
+		var builder labels.ScratchBuilder
 		var chks []chunks.Meta
 
-		require.NoError(t, ir2.Series(p.At(), &lset, &chks))
+		require.NoError(t, ir2.Series(p.At(), &builder, &lset, &chks))
 		require.Equal(t, 1, len(chks))
 	}
 }
