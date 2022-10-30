@@ -840,7 +840,7 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 						Labels: mimirpb.FromLabelAdaptersToLabelsWithCopy(ex.Labels),
 					}
 
-					if _, err = app.AppendExemplar(ref, nil, e); err == nil {
+					if _, err = app.AppendExemplar(ref, copiedLabels, e); err == nil {
 						succeededExemplarsCount++
 						continue
 					}

@@ -40,7 +40,7 @@ func (e *validationError) Error() string {
 	if e.err == nil {
 		return e.errorType
 	}
-	if e.labels == nil {
+	if e.labels.IsEmpty() {
 		return e.err.Error()
 	}
 	return fmt.Sprintf("%s This is for series %s", e.err.Error(), e.labels.String())
