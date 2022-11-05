@@ -728,8 +728,9 @@ func blockSeries(
 	return newBucketSeriesSet(res), reqStats, nil
 }
 
+// seriesCacheEntry is Gob-encoded in cache, so contains only simple types.
 type seriesCacheEntry struct {
-	LabelSets   []labels.Labels
+	LabelSets   [][]labels.Label
 	MatchersKey indexcache.LabelMatchersKey
 	Shard       sharding.ShardSelector
 }
@@ -756,19 +757,25 @@ func fetchCachedSeries(ctx context.Context, userID string, indexCache indexcache
 
 	res := make([]seriesEntry, len(entry.LabelSets))
 	for i, lset := range entry.LabelSets {
-		res[i].lset = lset
+		// Decode from []Label stored using Gob to labels.Labels - TODO: see if we can find a more efficient encoding/decoding.
+		res[i].lset = labels.New(lset...)
 	}
 	return res, true
 }
 
 func storeCachedSeries(ctx context.Context, indexCache indexcache.IndexCache, userID string, blockID ulid.ULID, matchers []*labels.Matcher, shard *sharding.ShardSelector, series []seriesEntry, logger log.Logger) {
 	entry := seriesCacheEntry{
-		LabelSets:   make([]labels.Labels, len(series)),
+		LabelSets:   make([][]labels.Label, len(series)),
 		MatchersKey: indexcache.CanonicalLabelMatchersKey(matchers),
 		Shard:       maybeNilShard(shard),
 	}
 	for i, s := range series {
-		entry.LabelSets[i] = s.lset
+		// Encode labels.Labels to []Label so it can be Gob-encoded - TODO: see if we can find a more efficient encoding/decoding.
+		lbls := make([]labels.Label, 0, s.lset.Len())
+		s.lset.Range(func(l labels.Label) {
+			lbls = append(lbls, l)
+		})
+		entry.LabelSets[i] = lbls
 	}
 	data, err := encodeSnappyGob(entry)
 	if err != nil {
