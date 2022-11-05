@@ -1617,6 +1617,19 @@ func TestDistributor_ExemplarValidation(t *testing.T) {
 	}
 }
 
+func mkLabels(n int, extra ...string) labels.Labels {
+	builder := labels.NewScratchBuilder(n + len(extra)/2)
+	builder.Add(model.MetricNameLabel, "foo")
+	for i := 0; i < n; i++ {
+		builder.Add(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
+	}
+	for i := 0; i < len(extra); i += 2 {
+		builder.Add(extra[i], extra[i+1])
+	}
+	builder.Sort()
+	return builder.Labels()
+}
+
 func BenchmarkDistributor_Push(b *testing.B) {
 	const (
 		numSeriesPerRequest = 1000
@@ -1635,12 +1648,7 @@ func BenchmarkDistributor_Push(b *testing.B) {
 				samples := make([]mimirpb.Sample, numSeriesPerRequest)
 
 				for i := 0; i < numSeriesPerRequest; i++ {
-					lbls := labels.NewBuilder(labels.FromStrings(model.MetricNameLabel, "foo"))
-					for i := 0; i < 10; i++ {
-						lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-					}
-
-					metrics[i] = lbls.Labels(nil)
+					metrics[i] = mkLabels(10)
 					samples[i] = mimirpb.Sample{
 						Value:       float64(i),
 						TimestampMs: time.Now().UnixNano() / int64(time.Millisecond),
@@ -1661,12 +1669,7 @@ func BenchmarkDistributor_Push(b *testing.B) {
 				samples := make([]mimirpb.Sample, numSeriesPerRequest)
 
 				for i := 0; i < numSeriesPerRequest; i++ {
-					lbls := labels.NewBuilder(labels.FromStrings(model.MetricNameLabel, "foo"))
-					for i := 0; i < 10; i++ {
-						lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-					}
-
-					metrics[i] = lbls.Labels(nil)
+					metrics[i] = mkLabels(10)
 					samples[i] = mimirpb.Sample{
 						Value:       float64(i),
 						TimestampMs: time.Now().UnixNano() / int64(time.Millisecond),
@@ -1686,12 +1689,7 @@ func BenchmarkDistributor_Push(b *testing.B) {
 				samples := make([]mimirpb.Sample, numSeriesPerRequest)
 
 				for i := 0; i < numSeriesPerRequest; i++ {
-					lbls := labels.NewBuilder(labels.FromStrings(model.MetricNameLabel, "foo"))
-					for i := 1; i < 31; i++ {
-						lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-					}
-
-					metrics[i] = lbls.Labels(nil)
+					metrics[i] = mkLabels(31)
 					samples[i] = mimirpb.Sample{
 						Value:       float64(i),
 						TimestampMs: time.Now().UnixNano() / int64(time.Millisecond),
@@ -1711,15 +1709,8 @@ func BenchmarkDistributor_Push(b *testing.B) {
 				samples := make([]mimirpb.Sample, numSeriesPerRequest)
 
 				for i := 0; i < numSeriesPerRequest; i++ {
-					lbls := labels.NewBuilder(labels.FromStrings(model.MetricNameLabel, "foo"))
-					for i := 0; i < 10; i++ {
-						lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-					}
-
 					// Add a label with a very long name.
-					lbls.Set(fmt.Sprintf("xxx_%0.2000d", 1), "xxx")
-
-					metrics[i] = lbls.Labels(nil)
+					metrics[i] = mkLabels(10, fmt.Sprintf("xxx_%0.2000d", 1), "xxx")
 					samples[i] = mimirpb.Sample{
 						Value:       float64(i),
 						TimestampMs: time.Now().UnixNano() / int64(time.Millisecond),
@@ -1739,15 +1730,8 @@ func BenchmarkDistributor_Push(b *testing.B) {
 				samples := make([]mimirpb.Sample, numSeriesPerRequest)
 
 				for i := 0; i < numSeriesPerRequest; i++ {
-					lbls := labels.NewBuilder(labels.FromStrings(model.MetricNameLabel, "foo"))
-					for i := 0; i < 10; i++ {
-						lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-					}
-
 					// Add a label with a very long value.
-					lbls.Set("xxx", fmt.Sprintf("xxx_%0.2000d", 1))
-
-					metrics[i] = lbls.Labels(nil)
+					metrics[i] = mkLabels(10, "xxx", fmt.Sprintf("xxx_%0.2000d", 1))
 					samples[i] = mimirpb.Sample{
 						Value:       float64(i),
 						TimestampMs: time.Now().UnixNano() / int64(time.Millisecond),
@@ -1767,12 +1751,7 @@ func BenchmarkDistributor_Push(b *testing.B) {
 				samples := make([]mimirpb.Sample, numSeriesPerRequest)
 
 				for i := 0; i < numSeriesPerRequest; i++ {
-					lbls := labels.NewBuilder(labels.FromStrings(model.MetricNameLabel, "foo"))
-					for i := 0; i < 10; i++ {
-						lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-					}
-
-					metrics[i] = lbls.Labels(nil)
+					metrics[i] = mkLabels(10)
 					samples[i] = mimirpb.Sample{
 						Value:       float64(i),
 						TimestampMs: time.Now().Add(time.Hour).UnixNano() / int64(time.Millisecond),

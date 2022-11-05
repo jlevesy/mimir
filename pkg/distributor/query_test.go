@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/timestamp"
 	"github.com/stretchr/testify/require"
@@ -195,12 +194,7 @@ func makeExemplarQueryResponse(numSeries int) *ingester_client.ExemplarQueryResp
 	now := time.Now()
 	ts := make([]mimirpb.TimeSeries, numSeries)
 	for i := 0; i < numSeries; i++ {
-		lbls := labels.NewBuilder(labels.EmptyLabels())
-		lbls.Set(model.MetricNameLabel, "foo")
-		for i := 0; i < 10; i++ {
-			lbls.Set(fmt.Sprintf("name_%d", i), fmt.Sprintf("value_%d", i))
-		}
-		ts[i].Labels = mimirpb.FromLabelsToLabelAdapters(lbls.Labels(nil))
+		ts[i].Labels = mimirpb.FromLabelsToLabelAdapters(mkLabels(10))
 		ts[i].Exemplars = []mimirpb.Exemplar{{
 			Labels:      []mimirpb.LabelAdapter{{Name: "traceid", Value: "trace1"}},
 			Value:       float64(i),
