@@ -1604,7 +1604,7 @@ func createBlockWithOneSeriesWithStep(t test.TB, dir string, lbls labels.Labels,
 	ref, err := app.Append(0, lbls, ts, random.Float64())
 	assert.NoError(t, err)
 	for i := 1; i < totalSamples; i++ {
-		_, err := app.Append(ref, nil, ts+step*int64(i), random.Float64())
+		_, err := app.Append(ref, lbls, ts+step*int64(i), random.Float64())
 		assert.NoError(t, err)
 	}
 	assert.NoError(t, app.Commit())
@@ -1943,7 +1943,7 @@ func prepareBucket(b *testing.B) (*bucketBlock, *metadata.Meta) {
 		SamplesPerSeries: 86400 / 15, // Simulate 1 day block with 15s scrape interval.
 		ScrapeInterval:   15 * time.Second,
 		Series:           1000,
-		PrependLabels:    nil,
+		PrependLabels:    labels.EmptyLabels(),
 		Random:           rand.New(rand.NewSource(120)),
 		SkipChunks:       true,
 	})
@@ -2231,16 +2231,17 @@ func createHeadWithSeries(t testing.TB, j int, opts headGenOptions) (*tsdb.Head,
 		lbls := labels.NewBuilder(opts.PrependLabels)
 		lbls.Set("foo", "bar")
 		lbls.Set("i", fmt.Sprintf("%07d%s", tsLabel, labelLongSuffix))
+		ll := lbls.Labels(labels.EmptyLabels())
 		ref, err := app.Append(
 			0,
-			lbls.Labels(nil),
+			ll,
 			int64(tsLabel)*opts.ScrapeInterval.Milliseconds(),
 			opts.Random.Float64(),
 		)
 		assert.NoError(t, err)
 
 		for is := 1; is < opts.SamplesPerSeries; is++ {
-			_, err := app.Append(ref, nil, int64(tsLabel+is)*opts.ScrapeInterval.Milliseconds(), opts.Random.Float64())
+			_, err := app.Append(ref, ll, int64(tsLabel+is)*opts.ScrapeInterval.Milliseconds(), opts.Random.Float64())
 			assert.NoError(t, err)
 		}
 	}
@@ -2260,11 +2261,12 @@ func createHeadWithSeries(t testing.TB, j int, opts headGenOptions) (*tsdb.Head,
 		expected   = make([]*storepb.Series, 0, opts.Series)
 	)
 
+	var builder labels.ScratchBuilder
 	all := allPostings(t, ir)
 	for all.Next() {
 		var lset labels.Labels
 
-		assert.NoError(t, ir.Series(all.At(), &lset, &chunkMetas))
+		assert.NoError(t, ir.Series(all.At(), &builder, &lset, &chunkMetas))
 		expected = append(expected, &storepb.Series{Labels: mimirpb.FromLabelsToLabelAdapters(lset)})
 
 		if opts.SkipChunks {

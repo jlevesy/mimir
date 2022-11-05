@@ -870,9 +870,7 @@ func generateSeries(card []int) []labels.Labels {
 	var rec func(idx int)
 	rec = func(lvl int) {
 		if lvl == len(card) {
-			cp := make([]labels.Label, len(card))
-			copy(cp, current)
-			series = append(series, cp)
+			series = append(series, labels.New(current...))
 			return
 		}
 

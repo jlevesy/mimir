@@ -43,7 +43,7 @@ func NewStatsResponse(indexBytesFetched int) *SeriesResponse {
 type emptySeriesSet struct{}
 
 func (emptySeriesSet) Next() bool                       { return false }
-func (emptySeriesSet) At() (labels.Labels, []AggrChunk) { return nil, nil }
+func (emptySeriesSet) At() (labels.Labels, []AggrChunk) { return labels.EmptyLabels(), nil }
 func (emptySeriesSet) Err() error                       { return nil }
 
 // EmptySeriesSet returns a new series set that contains no series.
