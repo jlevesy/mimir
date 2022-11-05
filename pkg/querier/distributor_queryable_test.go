@@ -140,7 +140,7 @@ func TestIngesterStreaming(t *testing.T) {
 	require.NoError(t, err)
 
 	clientChunks, err := chunkcompat.ToChunks([]chunk.Chunk{
-		chunk.NewChunk(nil, promChunk, model.Earliest, model.Earliest),
+		chunk.NewChunk(labels.EmptyLabels(), promChunk, model.Earliest, model.Earliest),
 	})
 	require.NoError(t, err)
 
@@ -297,16 +297,16 @@ func BenchmarkDistributorQueryable_Select(b *testing.B) {
 	require.NoError(b, err)
 
 	clientChunks, err := chunkcompat.ToChunks([]chunk.Chunk{
-		chunk.NewChunk(nil, promChunk, model.Earliest, model.Earliest),
+		chunk.NewChunk(labels.EmptyLabels(), promChunk, model.Earliest, model.Earliest),
 	})
 	require.NoError(b, err)
 
 	// Generate fixtures for series that are going to be returned by the mocked QueryStream().
-	commonLabelsBuilder := labels.NewBuilder(nil)
+	commonLabelsBuilder := labels.NewScratchBuilder(numLabelsPerSeries - 1)
 	for i := 0; i < numLabelsPerSeries-1; i++ {
-		commonLabelsBuilder.Set(fmt.Sprintf("label_%d", i), fmt.Sprintf("value_%d", i))
+		commonLabelsBuilder.Add(fmt.Sprintf("label_%d", i), fmt.Sprintf("value_%d", i))
 	}
-	commonLabels := commonLabelsBuilder.Labels(nil)
+	commonLabels := commonLabelsBuilder.Labels()
 
 	response := &client.QueryStreamResponse{Chunkseries: make([]client.TimeSeriesChunk, 0, numSeries)}
 	for i := 0; i < numSeries; i++ {
@@ -314,7 +314,7 @@ func BenchmarkDistributorQueryable_Select(b *testing.B) {
 		lbls.Set("series_id", strconv.Itoa(i))
 
 		response.Chunkseries = append(response.Chunkseries, client.TimeSeriesChunk{
-			Labels: mimirpb.FromLabelsToLabelAdapters(lbls.Labels(nil)),
+			Labels: mimirpb.FromLabelsToLabelAdapters(lbls.Labels(labels.EmptyLabels())),
 			Chunks: clientChunks,
 		})
 	}
@@ -365,7 +365,7 @@ func convertToChunks(t *testing.T, samples []mimirpb.Sample) []client.Chunk {
 	}
 
 	clientChunks, err := chunkcompat.ToChunks([]chunk.Chunk{
-		chunk.NewChunk(nil, promChunk, model.Time(samples[0].TimestampMs), model.Time(samples[len(samples)-1].TimestampMs)),
+		chunk.NewChunk(labels.EmptyLabels(), promChunk, model.Time(samples[0].TimestampMs), model.Time(samples[len(samples)-1].TimestampMs)),
 	})
 	require.NoError(t, err)
 

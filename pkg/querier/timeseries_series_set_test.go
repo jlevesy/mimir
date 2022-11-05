@@ -8,6 +8,7 @@ package querier
 import (
 	"testing"
 
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/stretchr/testify/require"
 
@@ -38,8 +39,7 @@ func TestTimeSeriesSeriesSet(t *testing.T) {
 	require.True(t, ss.Next())
 	series := ss.At()
 
-	require.Equal(t, ss.ts[0].Labels[0].Name, series.Labels()[0].Name)
-	require.Equal(t, ss.ts[0].Labels[0].Value, series.Labels()[0].Value)
+	require.Equal(t, labels.FromStrings("label1", "value1"), series.Labels())
 
 	it := series.Iterator()
 	require.True(t, it.Next() == chunkenc.ValFloat)

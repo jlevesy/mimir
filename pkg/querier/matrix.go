@@ -7,6 +7,7 @@ package querier
 
 import (
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 
 	"github.com/grafana/mimir/pkg/storage/chunk"
@@ -26,5 +27,5 @@ func mergeChunks(chunks []chunk.Chunk, from, through model.Time) chunkenc.Iterat
 	}
 
 	merged := util.MergeNSampleSets(samples...)
-	return series.NewConcreteSeriesIterator(series.NewConcreteSeries(nil, merged))
+	return series.NewConcreteSeriesIterator(series.NewConcreteSeries(labels.EmptyLabels(), merged))
 }
