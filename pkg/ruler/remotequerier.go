@@ -307,18 +307,16 @@ func decodeQueryResponse(valTyp model.ValueType, result json.RawMessage) (promql
 
 func vectorToPromQLVector(vec prommodel.Vector) promql.Vector {
 	retVal := make(promql.Vector, 0, len(vec))
+	builder := labels.ScratchBuilder{}
 	for _, p := range vec {
-
-		lbl := make(labels.Labels, 0, len(p.Metric))
+		builder.Reset()
 		for ln, lv := range p.Metric {
-			lbl = append(lbl, labels.Label{
-				Name:  string(ln),
-				Value: string(lv),
-			})
+			builder.Add(string(ln), string(lv))
 		}
+		builder.Sort()
 
 		retVal = append(retVal, promql.Sample{
-			Metric: lbl,
+			Metric: builder.Labels(),
 			Point: promql.Point{
 				V: float64(p.Value),
 				T: int64(p.Timestamp),
