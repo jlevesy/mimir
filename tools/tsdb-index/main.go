@@ -76,10 +76,11 @@ func printBlockIndex(blockDir string, printChunks bool, matchers []*labels.Match
 		return
 	}
 
+	var lbls labels.Labels
+	var builder labels.ScratchBuilder
 	for p.Next() {
-		lbls := labels.Labels(nil)
 		chks := []chunks.Meta(nil)
-		err := idx.Series(p.At(), &lbls, &chks)
+		err := idx.Series(p.At(), &builder, &lbls, &chks)
 		if err != nil {
 			level.Error(logger).Log("msg", "error getting series", "seriesID", p.At(), "err", err)
 			continue
