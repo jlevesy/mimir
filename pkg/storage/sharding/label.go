@@ -7,9 +7,29 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
 	"github.com/prometheus/prometheus/model/labels"
 )
+
+// LabelsXXHash replicates historical hash computation from Prometheus circa 2020.
+// The buffer b can be recycled to avoid allocations.
+func LabelsXXHash(b []byte, ls labels.Labels) (uint64, []byte) {
+	b = b[:0]
+	ls.Range(func(l labels.Label) {
+		b = append(b, l.Name...)
+		b = append(b, '\xff')
+		b = append(b, l.Value...)
+		b = append(b, '\xff')
+	})
+	return xxhash.Sum64(b), b
+}
+
+// ShardFunc is a simpler API to the above, when you don't need to avoid allocations.
+func ShardFunc(l labels.Labels) uint64 {
+	hash, _ := LabelsXXHash(nil, l)
+	return hash
+}
 
 const (
 	// ShardLabel is a reserved label referencing a shard on read path.

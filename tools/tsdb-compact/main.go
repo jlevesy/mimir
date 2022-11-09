@@ -12,8 +12,9 @@ import (
 	"syscall"
 
 	golog "github.com/go-kit/log"
-
 	"github.com/prometheus/prometheus/tsdb"
+
+	"github.com/grafana/mimir/pkg/storage/sharding"
 )
 
 func main() {
@@ -77,7 +78,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	c, err := tsdb.NewLeveledCompactorWithChunkSize(ctx, nil, logger, []int64{0}, nil, segmentSizeMB*1024*1024, nil, true)
+	c, err := tsdb.NewLeveledCompactorWithChunkSize(ctx, nil, logger, []int64{0}, nil, segmentSizeMB*1024*1024, nil, true, sharding.ShardFunc)
 	if err != nil {
 		log.Fatalln("creating compator", err)
 	}

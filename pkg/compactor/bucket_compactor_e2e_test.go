@@ -40,6 +40,7 @@ import (
 
 	"github.com/thanos-io/objstore"
 
+	"github.com/grafana/mimir/pkg/storage/sharding"
 	mimir_tsdb "github.com/grafana/mimir/pkg/storage/tsdb"
 	"github.com/grafana/mimir/pkg/storage/tsdb/block"
 	"github.com/grafana/mimir/pkg/storage/tsdb/bucketindex"
@@ -723,7 +724,7 @@ func createBlockWithOptions(
 	if err := g.Wait(); err != nil {
 		return id, err
 	}
-	c, err := tsdb.NewLeveledCompactor(ctx, nil, log.NewNopLogger(), []int64{maxt - mint}, nil, nil, true)
+	c, err := tsdb.NewLeveledCompactorWithChunkSize(ctx, nil, log.NewNopLogger(), []int64{maxt - mint}, nil, chunks.DefaultChunkSegmentSize, nil, true, sharding.ShardFunc)
 	if err != nil {
 		return id, errors.Wrap(err, "create compactor")
 	}

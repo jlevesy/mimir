@@ -850,7 +850,7 @@ func appendTestSeries(series int) func(testing.TB, storage.Appender) {
 }
 
 func createBlockFromHead(t testing.TB, dir string, head *tsdb.Head) ulid.ULID {
-	compactor, err := tsdb.NewLeveledCompactor(context.Background(), nil, log.NewNopLogger(), []int64{1000000}, nil, nil, true)
+	compactor, err := tsdb.NewLeveledCompactorWithChunkSize(context.Background(), nil, log.NewNopLogger(), []int64{1000000}, nil, chunks.DefaultChunkSegmentSize, nil, true, sharding.ShardFunc)
 	assert.NoError(t, err)
 
 	assert.NoError(t, os.MkdirAll(dir, 0777))

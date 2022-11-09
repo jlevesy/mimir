@@ -769,7 +769,7 @@ func labelsForShardsGenerator(base []labels.Label, shards uint64) func(shard uin
 			builder.Sort()
 			ls := builder.Labels()
 			// If this label value makes this labels combination fall into the desired shard, return it, otherwise keep trying.
-			if ls.Hash()%shards == shard {
+			if sharding.ShardFunc(ls)%shards == shard {
 				return ls
 			}
 		}
@@ -1751,7 +1751,7 @@ func filterSeriesByShard(series []*promql.StorageSeries, shard *sharding.ShardSe
 	var filtered []*promql.StorageSeries
 
 	for _, s := range series {
-		if s.Labels().Hash()%shard.ShardCount == shard.ShardIndex {
+		if sharding.ShardFunc(s.Labels())%shard.ShardCount == shard.ShardIndex {
 			filtered = append(filtered, s)
 		}
 	}

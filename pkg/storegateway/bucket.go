@@ -630,6 +630,7 @@ func blockSeries(
 			chks           []chunks.Meta
 			postingsStats  = &queryStats{}
 			builder        labels.ScratchBuilder
+			hashBuffer     []byte
 		)
 
 		// Keep track of postings lookup stats in a dedicated stats structure that doesn't require lock
@@ -662,7 +663,7 @@ func blockSeries(
 				seriesCacheStats.seriesHashCacheRequests++
 
 				if !ok {
-					hash = lset.Hash()
+					hash, hashBuffer = sharding.LabelsXXHash(hashBuffer, lset)
 					seriesHashCache.Store(id, hash)
 				} else {
 					seriesCacheStats.seriesHashCacheHits++

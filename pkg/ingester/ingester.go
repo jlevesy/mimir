@@ -1601,6 +1601,7 @@ func (i *Ingester) createTSDB(userID string) (*userTSDB, error) {
 		AllowOverlappingCompaction:     false,                // always false since Mimir only uploads lvl 1 compacted blocks
 		OutOfOrderTimeWindow:           oooTW.Milliseconds(), // The unit must be same as our timestamps.
 		OutOfOrderCapMax:               int64(i.cfg.BlocksStorageConfig.TSDB.OutOfOrderCapacityMax),
+		ShardFunc:                      sharding.ShardFunc,
 	}, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open TSDB: %s", udir)

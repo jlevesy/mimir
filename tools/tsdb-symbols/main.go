@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 	"github.com/prometheus/prometheus/tsdb/index"
 
+	"github.com/grafana/mimir/pkg/storage/sharding"
 	"github.com/grafana/mimir/pkg/storage/tsdb/metadata"
 	"github.com/grafana/mimir/pkg/util"
 )
@@ -145,7 +146,7 @@ func analyseSymbols(blockDir string, uniqueSymbols map[string]struct{}, uniqueSy
 
 		shardID := uint64(0)
 		if shards > 0 {
-			shardID = lbls.Hash() % uint64(shards)
+			shardID = sharding.ShardFunc(lbls) % uint64(shards)
 		}
 
 		lbls.Range(func(l labels.Label) {
