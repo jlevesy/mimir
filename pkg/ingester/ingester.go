@@ -737,8 +737,9 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 			continue
 		}
 
+		nonCopiedLabels := mimirpb.FromLabelAdaptersToLabels(ts.Labels)
 		// Look up a reference for this series.
-		ref, copiedLabels := app.GetRef(mimirpb.FromLabelAdaptersToLabels(ts.Labels), mimirpb.FromLabelAdaptersToLabels(ts.Labels).Hash())
+		ref, copiedLabels := app.GetRef(nonCopiedLabels, nonCopiedLabels.Hash())
 
 		// To find out if any sample was added to this series, we keep old value.
 		oldSucceededSamplesCount := succeededSamplesCount
@@ -817,7 +818,7 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 		}
 
 		if i.cfg.ActiveSeriesMetricsEnabled && succeededSamplesCount > oldSucceededSamplesCount {
-			db.activeSeries.UpdateSeries(mimirpb.FromLabelAdaptersToLabels(ts.Labels), startAppend, func(l labels.Labels) labels.Labels {
+			db.activeSeries.UpdateSeries(nonCopiedLabels, startAppend, func(l labels.Labels) labels.Labels {
 				// we must already have copied the labels if succeededSamplesCount has been incremented.
 				return copiedLabels
 			})
