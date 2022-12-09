@@ -462,19 +462,9 @@ func assertQueryStatsMetricsRecorded(t *testing.T, numSeries int, numChunksPerSe
 	metrics, err := util.NewMetricFamilyMap(families)
 	require.NoError(t, err, "couldn't gather metrics from BucketStore")
 
-	toLabels := func(labelValuePairs []string) (result labels.Labels) {
-		if len(labelValuePairs)%2 != 0 {
-			t.Fatalf("invalid label name-value pairs %s", strings.Join(labelValuePairs, ""))
-		}
-		for i := 0; i < len(labelValuePairs); i += 2 {
-			result = append(result, labels.Label{Name: labelValuePairs[i], Value: labelValuePairs[i+1]})
-		}
-		return
-	}
-
 	numObservationsForSummaries := func(summaryName string, labelValuePairs ...string) uint64 {
 		summaryData := &util.SummaryData{}
-		for _, metric := range getMetricsMatchingLabels(metrics[summaryName], toLabels(labelValuePairs)) {
+		for _, metric := range getMetricsMatchingLabels(t, metrics[summaryName], labelValuePairs) {
 			summaryData.AddSummary(metric.GetSummary())
 		}
 		m := &dto.Metric{}
@@ -484,7 +474,7 @@ func assertQueryStatsMetricsRecorded(t *testing.T, numSeries int, numChunksPerSe
 
 	numObservationsForHistogram := func(histogramName string, labelValuePairs ...string) uint64 {
 		histogramData := &util.HistogramData{}
-		for _, metric := range getMetricsMatchingLabels(metrics[histogramName], toLabels(labelValuePairs)) {
+		for _, metric := range getMetricsMatchingLabels(t, metrics[histogramName], labelValuePairs) {
 			histogramData.AddHistogram(metric.GetHistogram())
 		}
 		m := &dto.Metric{}
@@ -509,10 +499,16 @@ func assertQueryStatsMetricsRecorded(t *testing.T, numSeries int, numChunksPerSe
 	}
 }
 
-func getMetricsMatchingLabels(mf *dto.MetricFamily, selectors labels.Labels) []*dto.Metric {
+func getMetricsMatchingLabels(t *testing.T, mf *dto.MetricFamily, labelValuePairs []string) []*dto.Metric {
+	if len(labelValuePairs) == 0 {
+		return mf.GetMetric()
+	}
+	if len(labelValuePairs) != 2 {
+		t.Fatalf("invalid label name-value pair %s", strings.Join(labelValuePairs, ","))
+	}
 	var result []*dto.Metric
 	for _, m := range mf.GetMetric() {
-		if !matchesSelectors(m, selectors) {
+		if !matchesSelector(m, labelValuePairs[0], labelValuePairs[1]) {
 			continue
 		}
 		result = append(result, m)
@@ -520,24 +516,13 @@ func getMetricsMatchingLabels(mf *dto.MetricFamily, selectors labels.Labels) []*
 	return result
 }
 
-func matchesSelectors(m *dto.Metric, selectors labels.Labels) bool {
-	for _, l := range selectors {
-		found := false
-		for _, lp := range m.GetLabel() {
-			if l.Name != lp.GetName() || l.Value != lp.GetValue() {
-				continue
-			}
-
-			found = true
-			break
-		}
-
-		if !found {
-			return false
+func matchesSelector(m *dto.Metric, name, value string) bool {
+	for _, lp := range m.GetLabel() {
+		if name == lp.GetName() && value == lp.GetValue() {
+			return true
 		}
 	}
-
-	return true
+	return false
 }
 
 func TestBucketStore_e2e(t *testing.T) {
