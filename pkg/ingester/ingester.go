@@ -718,6 +718,8 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 	level.Debug(spanlog).Log("event", "got appender", "numSeries", len(req.Timeseries))
 
 	oooTW := i.limits.OutOfOrderTimeWindow(userID)
+	var builder labels.ScratchBuilder
+	var nonCopiedLabels labels.Labels
 	for _, ts := range req.Timeseries {
 		// The labels must be sorted (in our case, it's guaranteed a write request
 		// has sorted labels once hit the ingester).
@@ -737,7 +739,8 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 			continue
 		}
 
-		nonCopiedLabels := mimirpb.FromLabelAdaptersToLabels(ts.Labels)
+		// MUST BE COPIED before being retained.
+		mimirpb.FromLabelAdaptersOverwriteLabels(&builder, ts.Labels, &nonCopiedLabels)
 		// Look up a reference for this series.
 		ref, copiedLabels := app.GetRef(nonCopiedLabels, nonCopiedLabels.Hash())
 
@@ -755,7 +758,7 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 				}
 			} else {
 				// Copy the label set because both TSDB and the active series tracker may retain it.
-				copiedLabels = mimirpb.FromLabelAdaptersToLabelsWithCopy(ts.Labels)
+				copiedLabels = nonCopiedLabels.Copy()
 
 				// Retain the reference in case there are multiple samples for the series.
 				if ref, err = app.Append(0, copiedLabels, s.TimestampMs, s.Value); err == nil {
@@ -838,7 +841,7 @@ func (i *Ingester) PushWithCleanup(ctx context.Context, pushReq *push.Request) (
 						Value:  ex.Value,
 						Ts:     ex.TimestampMs,
 						HasTs:  true,
-						Labels: mimirpb.FromLabelAdaptersToLabelsWithCopy(ex.Labels),
+						Labels: mimirpb.FromLabelAdaptersToLabels(ex.Labels),
 					}
 
 					if _, err = app.AppendExemplar(ref, copiedLabels, e); err == nil {

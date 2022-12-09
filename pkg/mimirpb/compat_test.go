@@ -9,9 +9,7 @@ import (
 	"encoding/json"
 	stdlibjson "encoding/json"
 	"math"
-	"reflect"
 	"testing"
-	"unsafe"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/prometheus/model/labels"
@@ -115,29 +113,4 @@ func TestFromLabelAdaptersToLabels(t *testing.T) {
 	actual := FromLabelAdaptersToLabels(input)
 
 	assert.Equal(t, expected, actual)
-}
-
-func TestFromLabelAdaptersToLabelsWithCopy(t *testing.T) {
-	input := []LabelAdapter{{Name: "hello", Value: "world"}}
-	expected := labels.FromStrings("hello", "world")
-	actual := FromLabelAdaptersToLabelsWithCopy(input)
-
-	assert.Equal(t, expected, actual)
-
-	// All strings must be copied.
-	actualValue := actual.Get("hello")
-	hInputValue := (*reflect.StringHeader)(unsafe.Pointer(&input[0].Value))
-	hActualValue := (*reflect.StringHeader)(unsafe.Pointer(&actualValue))
-	assert.NotEqual(t, hInputValue.Data, hActualValue.Data)
-}
-
-func BenchmarkFromLabelAdaptersToLabelsWithCopy(b *testing.B) {
-	input := []LabelAdapter{
-		{Name: "hello", Value: "world"},
-		{Name: "some label", Value: "and its value"},
-		{Name: "long long long long long label name", Value: "perhaps even longer label value, but who's counting anyway?"}}
-
-	for i := 0; i < b.N; i++ {
-		FromLabelAdaptersToLabelsWithCopy(input)
-	}
 }
