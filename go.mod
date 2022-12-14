@@ -17,7 +17,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/gorilla/mux v1.8.0
 	github.com/grafana/dskit v0.0.0-20221110225216-188592c3d6fc
-	github.com/grafana/e2e v0.1.1-0.20221209210459-74fea291f43a
+	github.com/grafana/e2e v0.1.1-0.20221213234358-ea4e837e3811
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/json-iterator/go v1.1.12
 	github.com/minio/minio-go/v7 v7.0.37
