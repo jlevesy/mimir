@@ -230,7 +230,7 @@ replace github.com/bradfitz/gomemcache => github.com/grafana/gomemcache v0.0.0-2
 
 // Using a fork of Prometheus while we work on querysharding to avoid a dependency on the upstream.
 // And labels.Labels as string.
-replace github.com/prometheus/prometheus => github.com/grafana/mimir-prometheus v0.0.0-20221209094437-cc63c70c817c
+replace github.com/prometheus/prometheus => github.com/grafana/mimir-prometheus v0.0.0-20221215160540-c5fc7b87468a
 
 // Pin hashicorp depencencies since the Prometheus fork, go mod tries to update them.
 replace github.com/hashicorp/go-immutable-radix => github.com/hashicorp/go-immutable-radix v1.2.0

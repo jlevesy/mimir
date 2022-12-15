@@ -712,7 +712,8 @@ func appendLabelTo(buf []byte, m *Label) []byte {
 
 // ScratchBuilder allows efficient construction of a Labels from scratch.
 type ScratchBuilder struct {
-	add []Label
+	add             []Label
+	overwriteBuffer []byte
 }
 
 // NewScratchBuilder creates a ScratchBuilder initialized for Labels with n entries.
@@ -748,12 +749,11 @@ func (b *ScratchBuilder) Labels() Labels {
 // Callers must ensure that there are no other references to ls.
 func (b *ScratchBuilder) Overwrite(ls *Labels) {
 	size := labelsSize(b.add)
-	var buf []byte
-	if size <= len(ls.data) {
-		buf = yoloBytes(ls.data)[:size]
+	if size <= cap(b.overwriteBuffer) {
+		b.overwriteBuffer = b.overwriteBuffer[:size]
 	} else {
-		buf = make([]byte, size)
+		b.overwriteBuffer = make([]byte, size)
 	}
-	marshalLabelsToSizedBuffer(b.add, buf)
-	ls.data = yoloString(buf)
+	marshalLabelsToSizedBuffer(b.add, b.overwriteBuffer)
+	ls.data = yoloString(b.overwriteBuffer)
 }
