@@ -87,12 +87,6 @@ func newV1PostingOffsetTable(factory *streamencoding.DecbufFactory, tableOffset 
 	return &t, nil
 }
 
-type lastValuePosition struct {
-	key                string
-	valueOffsetFromEnd int
-	offsetInTable      int
-}
-
 func newV2PostingOffsetTable(factory *streamencoding.DecbufFactory, tableOffset int, indexLastPostingEnd uint64, postingOffsetsInMemSampling int) (table *PostingOffsetTableV2, err error) {
 	t := PostingOffsetTableV2{
 		factory:                     factory,
@@ -108,8 +102,7 @@ func newV2PostingOffsetTable(factory *streamencoding.DecbufFactory, tableOffset 
 	remainingCount := d.Be32()
 	currentKey := ""
 	valuesForCurrentKey := 0
-
-	var lastValuePositions []lastValuePosition
+	lastEntryOffsetInTable := -1
 
 	for d.Err() == nil && remainingCount > 0 {
 		lastKey := currentKey
@@ -126,10 +119,25 @@ func newV2PostingOffsetTable(factory *streamencoding.DecbufFactory, tableOffset 
 		key := d.UvarintBytes()
 
 		if len(t.postings) == 0 || currentKey != string(key) {
-			// New label name.
-			currentKey = string(key)
+			newKey := string(key)
+
+			if lastEntryOffsetInTable != -1 {
+				// We haven't recorded the last offset for the last value of the previous key.
+				// Go back and read the last value for the previous key.
+				newValueOffset := d.Len()
+				d.ResetAt(lastEntryOffsetInTable + 4) // 4 bytes for entry count
+				d.Uvarint()                           // Skip the key count
+				d.SkipUvarintBytes()                  // Skip the key
+				value := d.UvarintStr()
+				t.postings[currentKey].offsets = append(t.postings[currentKey].offsets, postingOffset{value: value, tableOff: lastEntryOffsetInTable})
+
+				// Skip ahead to where we were before we called ResetAt() above.
+				d.Skip(d.Len() - newValueOffset)
+			}
+
+			currentKey = newKey
 			t.postings[currentKey] = &postingValueOffsets{}
-			lastValuePositions = append(lastValuePositions, lastValuePosition{key: currentKey, valueOffsetFromEnd: -1})
+			lastEntryOffsetInTable = -1
 			valuesForCurrentKey = 0
 		}
 
@@ -143,12 +151,11 @@ func newV2PostingOffsetTable(factory *streamencoding.DecbufFactory, tableOffset 
 			}
 
 			// If the current value is the last one for this key, we don't need to record it again.
-			lastValuePositions[len(lastValuePositions)-1].valueOffsetFromEnd = -1
+			lastEntryOffsetInTable = -1
 		} else {
 			// We only need to store this value if it's the last one for this key.
-			// Record our current position in the table and come back to it below if it turns out this is the last value.
-			lastValuePositions[len(lastValuePositions)-1].valueOffsetFromEnd = d.Len()
-			lastValuePositions[len(lastValuePositions)-1].offsetInTable = offsetInTable
+			// Record our current position in the table and come back to it if it turns out this is the last value.
+			lastEntryOffsetInTable = offsetInTable
 
 			// Skip over the value and offset.
 			d.SkipUvarintBytes()
@@ -159,21 +166,18 @@ func newV2PostingOffsetTable(factory *streamencoding.DecbufFactory, tableOffset 
 		remainingCount--
 	}
 
-	if d.Err() != nil {
-		return nil, errors.Wrap(d.Err(), "read postings table")
+	if lastEntryOffsetInTable != -1 {
+		// We haven't recorded the last offset for the last value of the last key
+		// Go back and read the last value for the last key.
+		d.ResetAt(lastEntryOffsetInTable + 4) // 4 bytes for initial count
+		d.Uvarint()                           // Skip the key count
+		d.SkipUvarintBytes()                  // Skip the key
+		value := d.UvarintStr()
+		t.postings[currentKey].offsets = append(t.postings[currentKey].offsets, postingOffset{value: value, tableOff: lastEntryOffsetInTable})
 	}
 
-	d.ResetAt(0)
-
-	// Read through the file once more, reading the values and positions of the last value for each key.
-	for _, pos := range lastValuePositions {
-		if pos.valueOffsetFromEnd == -1 {
-			continue
-		}
-
-		d.Skip(d.Len() - pos.valueOffsetFromEnd)
-		value := d.UvarintStr()
-		t.postings[pos.key].offsets = append(t.postings[pos.key].offsets, postingOffset{value: value, tableOff: pos.offsetInTable})
+	if d.Err() != nil {
+		return nil, errors.Wrap(d.Err(), "read postings table")
 	}
 
 	if len(t.postings) > 0 {
